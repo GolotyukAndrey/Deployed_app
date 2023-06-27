@@ -4,7 +4,8 @@ from flask import Flask, render_template, request, Response
 from werkzeug.utils import send_from_directory
 import os
 from ultralytics import YOLO
-from pytube import YouTube
+import requests
+from tqdm import tqdm
 
 
 #Get frame function from saved .mp4 file, returning stream of images with detected objects
@@ -43,65 +44,96 @@ def video_feed():
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
 #Downloading youtube video function, returning stream of images with detected objects
-def get_video():
-    try:
-        yt = YouTube(video_link)
-        print(f'Title: {yt.title}')
-        print(f'Views: {yt.views}')
-        print(f'Length: {yt.length}')
-        ys = yt.streams.get_highest_resolution()
+def get_video(video_link):
 
-        set = {'>', '<', ':', '"', '/', '\\', '|', '*', '.', ',', '='}
-        flag = 0
-        for i in range(len(yt.title)):
-            if yt.title[i] in set:
-                flag = 1
-                title = yt.title.replace(yt.title[i], ' ')  
-        if flag == 0:
-            title = yt.title
-        print(f'Directory name: {title}')
+    print(video_link)
+    folder_counter = str(sum([len(folder) for r, d, folder in os.walk('uploads/youtube_video/')]))
+    print('Число папок в uploads = ', folder_counter)
 
-        directory_uploads = 'uploads/' + title
-        try:
-            if not os.path.exists(directory_uploads):
-                os.makedirs(directory_uploads)
-        except Exception:
-            print('Invalid video name')
+    if '&list' in video_link:
+        video_link = video_link.split("&")[0].split("=")[-1]
+    else:
+        video_link = video_link.split("=")[-1]
 
-        try:
-            ys.download(directory_uploads, 'youtube_video.mp4')
-            print('Download finished!')
-        except Exception:
-            print('Unable to download video')        
+    directory_name = 'uploads/youtube_video/' + folder_counter
+    headers = {
+        'authority': 'downloader.freemake.com',
+        'sec-ch-ua': '" Not A;Brand";v="99", "Chromium";v="98", "Yandex";v="22"',
+        'dnt': '1',
+        'x-cf-country': 'RU',
+        'sec-ch-ua-mobile': '?0',
+        'x-user-platform': 'Win32',
+        'accept': 'application/json, text/javascript, */*; q=0.01',
+        'x-user-browser': 'YaBrowser',
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
+                      'Chrome/98.0.4758.141 YaBrowser/22.3.3.852 Yowser/2.5 Safari/537.36',
+        'x-analytics-header': 'UA-18256617-1',
+        'x-request-attempt': '1',
+        'x-user-id': '94119398-e27a-3e13-be17-bbe7fbc25874',
+        'sec-ch-ua-platform': '"Windows"',
+        'origin': 'https://www.freemake.com',
+        'sec-fetch-site': 'same-site',
+        'sec-fetch-mode': 'cors',
+        'sec-fetch-dest': 'empty',
+        'referer': 'https://www.freemake.com/ru/free_video_downloader/',
+        'accept-language': 'ru,en;q=0.9,uk;q=0.8',
+    }
 
-        video_path = directory_uploads + '/youtube_video.mp4'
-        cap = cv2.VideoCapture(video_path)
-        frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        directory = 'runs/detect/video/' + title
+    print(f'[+] Получаю название и ссылку на видео...')
+    response = requests.get(f'https://downloader.freemake.com/api/videoinfo/{video_link}', headers=headers).json()
 
-        if not os.path.exists(directory):
-            os.makedirs(directory)
+    video_title = str(response['metaInfo']['title'])
+    for m in ["?", '"', "'", "/", ":", "#", "|", ",", " | "]:
+        video_title = video_title.replace(m, "")
+    url = response['qualities'][0]['url']
+    print(f'[+] Название и ссылка получены. Начинаю загрузку: "{video_title}"...')
 
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        out = cv2.VideoWriter(directory + '/result.mp4', fourcc, 30.0, (frame_width, frame_height))            
+    os.mkdir(directory_name)
+    print(f'[+] Создаю папку для сохранения видео...\n')
 
-        model = YOLO('yolov8n.pt')
+    req = requests.get(url=url, headers=headers, stream=True)
+    total = int(req.headers.get('content-length', 0))
+    with open(f'{os.path.join(directory_name, f"{video_title}.mp4")}', 'wb') as file, tqdm(
+            desc=f"{video_title[0:int(len(video_title) / 2)]}...",
+            total=total,
+            unit='iB',
+            unit_scale=True,
+            unit_divisor=1024,
+    ) as bar:
+        for data in req.iter_content(chunk_size=1024):
+            size = file.write(data)
+            bar.update(size)
+    print(f'\n[+] Загрузка завершена.\n')
 
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                break
-            
-            results = model(frame)
-            res_plotted = results[0].plot()
-            out.write(res_plotted)
-            _, results = cv2.imencode('.jpg', res_plotted)
-            yield(b'--frame\r\n'
-                    b'Content0Type: image/jpeg\r\n\r\n' + results.tobytes() + b'\r\n\r\n')
-        print(f'Result saved in {directory}/result.mp4')
-    except Exception:
-        print('Wrong URL, please enter youtube link')
+    print('channel_name = ', directory_name)
+    print('video_title = ', video_title)  
+    
+    video_path = directory_name + '/' + video_title + '.mp4'
+    cap = cv2.VideoCapture(video_path)
+    frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    directory = 'runs/detect/video/' + video_title
+
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    out = cv2.VideoWriter(directory + '/result.mp4', fourcc, 30.0, (frame_width, frame_height))            
+
+    model = YOLO('yolov8n.pt')
+
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+        
+        results = model(frame)
+        res_plotted = results[0].plot()
+        out.write(res_plotted)
+        _, results = cv2.imencode('.jpg', res_plotted)
+        yield(b'--frame\r\n'
+                b'Content0Type: image/jpeg\r\n\r\n' + results.tobytes() + b'\r\n\r\n')
+    print(f'Result saved in {directory}/result.mp4')
 
 #Object detection function which use YOLOv8 frame by frame from web-camera and return stream of images with detected objects
 def camera():
@@ -183,10 +215,11 @@ def ObjectDetection_videolink():
 @app.route('/ObjectDetection_videolink_detection',methods=['GET','POST'])
 def youtube_detect():
     print('Function youtube_detect called')
-    global video_link
-    video_link = request.form.get('videolink')
-    print(video_link)
-    return Response(get_video(),
+    
+    #global video_link
+    #video_link = request.form.get('videolink')
+    #print(video_link)
+    return Response(get_video(video_link = request.form.get('videolink')),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route('/ObjectDetection_camera')
