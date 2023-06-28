@@ -1,26 +1,25 @@
 
 import cv2
+import os
+import requests
 from flask import Flask, render_template, request, Response
 from werkzeug.utils import send_from_directory
-import os
 from ultralytics import YOLO
-import requests
 from tqdm import tqdm
 
 
 #Get frame function from saved .mp4 file, returning stream of images with detected objects
-def get_frame():
-    video_path = filepath
-    cap = cv2.VideoCapture(video_path)
+def get_frame(filepath, filename):
+    cap = cv2.VideoCapture(filepath)
     frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    directory = 'runs/detect/video/' + f.filename
+    directory = 'runs/detect/video/' + filename
 
     if not os.path.exists(directory):
         os.makedirs(directory)
 
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out = cv2.VideoWriter('runs/detect/video/' + f.filename + '/result.mp4', fourcc, 30.0, (frame_width, frame_height))            
+    out = cv2.VideoWriter('runs/detect/video/' + filename + '/result.mp4', fourcc, 30.0, (frame_width, frame_height))            
 
     model = YOLO('yolov8n.pt')
 
@@ -35,12 +34,12 @@ def get_frame():
         _, results = cv2.imencode('.jpg', res_plotted)
         yield(b'--frame\r\n'
                 b'Content0Type: image/jpeg\r\n\r\n' + results.tobytes() + b'\r\n\r\n')
-    print(f'Result saved in runs/detect/video/{f.filename}/result.mp4')
+    print(f'Result saved in runs/detect/video/{filename}/result.mp4')
 
 #Sending returned data from get_frame function    
-def video_feed():
+def video_feed(filepath, filename):
     print('Function called')
-    return Response(get_frame(),
+    return Response(get_frame(filepath, filename),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
 #Downloading youtube video function, returning stream of images with detected objects
@@ -48,7 +47,6 @@ def get_video(video_link):
 
     print(video_link)
     folder_counter = str(sum([len(folder) for r, d, folder in os.walk('uploads/youtube_video/')]))
-    print('Число папок в uploads = ', folder_counter)
 
     if '&list' in video_link:
         video_link = video_link.split("&")[0].split("=")[-1]
@@ -79,17 +77,17 @@ def get_video(video_link):
         'accept-language': 'ru,en;q=0.9,uk;q=0.8',
     }
 
-    print(f'[+] Получаю название и ссылку на видео...')
+    print(f'Recieving video title and URL...')
     response = requests.get(f'https://downloader.freemake.com/api/videoinfo/{video_link}', headers=headers).json()
 
     video_title = str(response['metaInfo']['title'])
-    for m in ["?", '"', "'", "/", ":", "#", "|", ",", " | "]:
-        video_title = video_title.replace(m, "")
+    for ch in ["?", '"', "'", "/", ":", "#", "|", ",", " | "]:
+        video_title = video_title.replace(ch, "")
     url = response['qualities'][0]['url']
-    print(f'[+] Название и ссылка получены. Начинаю загрузку: "{video_title}"...')
+    print(f'Title and URL recieved. Starting download: "{video_title}"...')
 
     os.mkdir(directory_name)
-    print(f'[+] Создаю папку для сохранения видео...\n')
+    print(f'Creating folder for downloaded video...\n')
 
     req = requests.get(url=url, headers=headers, stream=True)
     total = int(req.headers.get('content-length', 0))
@@ -103,9 +101,9 @@ def get_video(video_link):
         for data in req.iter_content(chunk_size=1024):
             size = file.write(data)
             bar.update(size)
-    print(f'\n[+] Загрузка завершена.\n')
+    print(f'\nDownload finished.\n')
 
-    print('channel_name = ', directory_name)
+    print('directory_name = ', directory_name)
     print('video_title = ', video_title)  
     
     video_path = directory_name + '/' + video_title + '.mp4'
@@ -184,10 +182,8 @@ def ObjectDetection_browse():
 @app.route('/ObjectDetection_browse', methods=['GET','POST'])
 def prediction():
     if request.method == 'POST':
-        global f
         f = request.files['file']
         basepath = os.path.dirname(__file__)
-        global filepath
         filepath = os.path.join(basepath, 'uploads', f.filename)
         print('Upload folder is ', filepath)
         f.save(filepath)
@@ -197,12 +193,11 @@ def prediction():
             model = YOLO('yolov8n.pt')
             img = cv2.imread(filepath)
             model.predict(img, name='image', save=True)
-
             return display(f.filename)
         
         elif file_extension == 'mp4':    
-
-            return video_feed()
+            filename = f.filename
+            return video_feed(filepath, filename)
                 
 @app.route('/ContactUs')
 def ContactUs():
@@ -215,11 +210,8 @@ def ObjectDetection_videolink():
 @app.route('/ObjectDetection_videolink_detection',methods=['GET','POST'])
 def youtube_detect():
     print('Function youtube_detect called')
-    
-    #global video_link
-    #video_link = request.form.get('videolink')
-    #print(video_link)
-    return Response(get_video(video_link = request.form.get('videolink')),
+    video_link = request.form.get('videolink') 
+    return Response(get_video(video_link),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route('/ObjectDetection_camera')
