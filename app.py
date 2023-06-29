@@ -47,6 +47,7 @@ def get_video(video_link):
 
     print(video_link)
     folder_counter = str(sum([len(folder) for r, d, folder in os.walk('uploads/youtube_video/')]))
+    print('folder_counter =', folder_counter)
 
     if '&list' in video_link:
         video_link = video_link.split("&")[0].split("=")[-1]
@@ -85,6 +86,10 @@ def get_video(video_link):
     url = response['qualities'][0]['url']
     print(f'Title and URL recieved. Starting download: "{video_title}"...')
 
+    youtube_dir = 'uploads/youtube_video/'
+    if not os.path.exists(youtube_dir):
+        os.mkdir(youtube_dir)
+        
     os.mkdir(directory_name)
     print(f'Creating folder for downloaded video...\n')
 
@@ -238,5 +243,5 @@ def camera_detect():
                         mimetype='multipart/x-mixed-replace; boundary=frame')      
 
 
-if __name__=='__main__':
-    app.run(debug=False)
+#if __name__=='__main__':
+app.run(debug=False)
