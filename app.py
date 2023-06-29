@@ -186,16 +186,17 @@ def prediction():
         basepath = os.path.dirname(__file__)
         filepath = os.path.join(basepath, 'uploads', f.filename)
         print('Upload folder is ', filepath)
-        f.save(filepath)
         file_extension = f.filename.rsplit('.', 1)[1].lower()
 
         if file_extension == 'jpg':
+            f.save(filepath)
             model = YOLO('yolov8n.pt')
             img = cv2.imread(filepath)
             model.predict(img, name='image', save=True)
             return display(f.filename)
         
-        elif file_extension == 'mp4':    
+        elif file_extension == 'mp4':   
+            f.save(filepath) 
             filename = f.filename
             return video_feed(filepath, filename)
         
