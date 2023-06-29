@@ -64,7 +64,7 @@ def get_video(video_link):
         'accept': 'application/json, text/javascript, */*; q=0.01',
         'x-user-browser': 'YaBrowser',
         'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
-                      'Chrome/98.0.4758.141 YaBrowser/22.3.3.852 Yowser/2.5 Safari/537.36',
+                    'Chrome/98.0.4758.141 YaBrowser/22.3.3.852 Yowser/2.5 Safari/537.36',
         'x-analytics-header': 'UA-18256617-1',
         'x-request-attempt': '1',
         'x-user-id': '94119398-e27a-3e13-be17-bbe7fbc25874',
@@ -79,7 +79,6 @@ def get_video(video_link):
 
     print(f'Recieving video title and URL...')
     response = requests.get(f'https://downloader.freemake.com/api/videoinfo/{video_link}', headers=headers).json()
-
     video_title = str(response['metaInfo']['title'])
     for ch in ["?", '"', "'", "/", ":", "#", "|", ",", " | "]:
         video_title = video_title.replace(ch, "")
@@ -210,9 +209,14 @@ def ObjectDetection_videolink():
 @app.route('/ObjectDetection_videolink_detection',methods=['GET','POST'])
 def youtube_detect():
     print('Function youtube_detect called')
-    video_link = request.form.get('videolink') 
-    return Response(get_video(video_link),
-                    mimetype='multipart/x-mixed-replace; boundary=frame')
+    video_link = request.form.get('videolink')
+    check_youtube = 'https://www.youtube.com/watch?v='
+    start = video_link[:32:]
+    if start == check_youtube and len(video_link) == 43:
+        return Response(get_video(video_link),
+                mimetype='multipart/x-mixed-replace; boundary=frame') 
+    else:
+        return render_template('exception.html')
 
 @app.route('/ObjectDetection_camera')
 def ObjectDetection_camera():
