@@ -136,6 +136,7 @@ def get_video(video_link):
 def camera():
     model = YOLO('yolov8n.pt')
     video = cv2.VideoCapture(0)
+    print('video = ', video)
     while True:
         success, image = video.read()
         if not success:
@@ -197,6 +198,9 @@ def prediction():
         elif file_extension == 'mp4':    
             filename = f.filename
             return video_feed(filepath, filename)
+        
+        else:
+            return render_template('exception.html')
                 
 @app.route('/ContactUs')
 def ContactUs():
@@ -225,8 +229,12 @@ def ObjectDetection_camera():
 @app.route('/ObjectDetection_camera_detection')
 def camera_detect():
     print('Function camera_detect called')
-    return Response(camera(),
-                    mimetype='multipart/x-mixed-replace; boundary=frame')
+    video = cv2.VideoCapture(0)
+    if video is None or not video.isOpened():
+        return render_template('exception.html')
+    else:
+        return Response(camera(),
+                        mimetype='multipart/x-mixed-replace; boundary=frame')      
 
 
 if __name__=='__main__':
