@@ -235,13 +235,13 @@ def ObjectDetection_camera():
 @app.route('/ObjectDetection_camera_detection')
 def camera_detect():
     print('Function camera_detect called')
-    video = cv2.VideoCapture(0)
+    video = cv2.VideoCapture(1)
     if video is None or not video.isOpened():
         return render_template('exception.html')
     else:
         return Response(camera(),
-                        mimetype='multipart/x-mixed-replace; boundary=frame')      
-
-
-#if __name__=='__main__':
-app.run(debug=False)
+                        mimetype='multipart/x-mixed-replace; boundary=frame') 
+     
+     
+if __name__=='__main__':
+    app.run(debug=False)
