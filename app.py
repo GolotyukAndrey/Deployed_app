@@ -219,7 +219,7 @@ def youtube_detect():
     start = video_link[:32:]
     if start == check_youtube and len(video_link) == 43:
         return Response(get_video(video_link),
-                mimetype='multipart/x-mixed-replace; boundary=frame') 
+                        mimetype='multipart/x-mixed-replace; boundary=frame')
     else:
         return render_template('exception.html')
 
